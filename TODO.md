@@ -1,0 +1,5 @@
+- Add JWT auth
+- Add image uploads for items
+- Implement seller dashboard
+- Add frontend (React/Vue) or server-side templates
+- Add tests
