@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Go Thrift — Profile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto; background:#fafafa } </style>
+</head>
+<body>
+  <header class="fixed top-0 left-0 right-0 bg-white border-b z-40">
+    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+      <a href="/" class="text-indigo-600 font-semibold">&larr; Explore</a>
+      <div class="text-sm text-gray-600">Profile</div>
+      <a href="/upload" class="px-3 py-2 bg-indigo-600 text-white rounded-md">Upload</a>
+    </div>
+  </header>
+
+  <main class="pt-20 max-w-4xl mx-auto px-4 pb-24">
+    <section class="bg-white rounded-xl shadow p-6 mb-6">
+      <div class="flex items-center gap-4">
+        <div class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-2xl text-gray-600">U</div>
+        <div>
+          <div id="profileUsername" class="text-xl font-semibold">@user_alice</div>
+          <div id="profileStats" class="text-sm text-gray-500">0 items • 0 sold</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3 class="text-lg font-semibold mb-3">Your items</h3>
+      <div id="profileGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div id="loadingProfile" class="col-span-full text-center text-gray-500">Loading your items…</div>
+      </div>
+      <div id="profileNoItems" class="hidden text-center text-gray-400 mt-6">You haven't posted anything yet.</div>
+    </section>
+  </main>
+
+<script>
+  const API_BASE_URL = 'http://localhost:8081';
+  const profileGrid = document.getElementById('profileGrid');
+  const loadingProfile = document.getElementById('loadingProfile');
+  const profileNoItems = document.getElementById('profileNoItems');
+
+  // adjust to show a specific user: you can read username param from URL if you wish
+  const PROFILE_USER = new URLSearchParams(location.search).get('u') || 'user_alice';
+  document.getElementById('profileUsername').textContent = `@${PROFILE_USER}`;
+
+  async function loadProfileItems() {
+    profileGrid.innerHTML = '';
+    loadingProfile.classList.remove('hidden');
+    profileNoItems.classList.add('hidden');
+
+    try {
+      // endpoint should support owner filtering: e.g., /items?ownerId=user_alice
+      const res = await fetch(`${API_BASE_URL}/items?ownerId=${encodeURIComponent(PROFILE_USER)}`);
+      if (!res.ok) throw new Error('network');
+      const items = await res.json();
+      if (!items.length) profileNoItems.classList.remove('hidden');
+      renderProfileGrid(items);
+    } catch (err) {
+      profileGrid.innerHTML = '<div class="col-span-full text-center text-red-600">Failed to load items.</div>';
+    } finally {
+      loadingProfile.classList.add('hidden');
+    }
+  }
+
+  function renderProfileGrid(items) {
+    profileGrid.innerHTML = '';
+    items.forEach(it => {
+      const img = it.imageUrl || 'https://via.placeholder.com/600x400?text=No+Image';
+      const node = document.createElement('article');
+      node.className = 'bg-white rounded-xl overflow-hidden shadow-sm';
+      node.innerHTML = `
+        <div class="h-44 bg-gray-100">
+          <img src="${img}" class="w-full h-full object-cover" alt="${escapeHtml(it.name)}" />
+        </div>
+        <div class="p-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <h4 class="font-semibold text-gray-800">${escapeHtml(it.name)}</h4>
+              <div class="text-xs text-gray-500">${escapeHtml(it.description || '').slice(0,80)}</div>
+            </div>
+            <div class="text-indigo-600 font-bold">$${Number(it.price).toFixed(2)}</div>
+          </div>
+        </div>
+      `;
+      profileGrid.appendChild(node);
+    });
+  }
+
+  function escapeHtml(s = '') {
+    return String(s).replaceAll('&','&amp;').replaceAll('<','<').replaceAll('>','>').replaceAll('"','"').replaceAll("'", '&#39;');
+  }
+
+  loadProfileItems();
+</script>
+</body>
+</html>

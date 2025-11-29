@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Go Thrift — Register</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto; background:#fafafa } </style>
+</head>
+<body class="min-h-screen flex items-center justify-center">
+  <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-sm">
+    <h2 class="text-2xl font-semibold mb-4 text-center">Register</h2>
+    <form id="registerForm" class="space-y-4">
+      <div>
+        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+        <input id="username" type="text" class="mt-1 block w-full rounded-md border p-2" placeholder="randomuser" required />
+      </div>
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+        <input id="email" type="email" class="mt-1 block w-full rounded-md border p-2" placeholder="user@gmail.com" required />
+      </div>
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+        <input id="name" type="text" class="mt-1 block w-full rounded-md border p-2" placeholder="Random User" />
+      </div>
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input id="password" type="password" class="mt-1 block w-full rounded-md border p-2" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-md">Register</button>
+      <p id="registerMsg" class="text-sm mt-2 text-center"></p>
+    </form>
+  </div>
+
+<script>
+  const API_BASE_URL = 'http://localhost:8081';
+  const registerForm = document.getElementById('registerForm');
+  const registerMsg = document.getElementById('registerMsg');
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const name = document.getElementById('name').value.trim();
+    const password = document.getElementById('password').value;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, name, password })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        registerMsg.textContent = "Registration successful! Welcome, " + result.user.name;
+        registerMsg.className = "text-green-600 text-center mt-2";
+      } else {
+        registerMsg.textContent = result.error || 'Registration failed';
+        registerMsg.className = "text-red-600 text-center mt-2";
+      }
+    } catch (err) {
+      registerMsg.textContent = "Network error.";
+      registerMsg.className = "text-red-600 text-center mt-2";
+    }
+  });
+</script>
+</body>
+</html>

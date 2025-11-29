@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Go Thrift — Explore</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:#fafafa; }
+    .post-card { transition: transform .12s ease, box-shadow .12s ease; }
+    .post-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,.08); }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Top nav -->
+  <header class="fixed top-0 left-0 right-0 bg-white border-b z-40">
+    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-indigo-600 font-bold text-xl">GoThrift</a>
+        <form id="searchForm" class="hidden sm:block">
+          <input id="searchInput" type="search" placeholder="Search items or sellers" class="px-3 py-2 rounded-full border w-80" />
+        </form>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="/upload" class="px-3 py-2 bg-indigo-600 text-white rounded-md">Upload</a>
+        <a href="/profile" class="px-2 py-2 rounded-full border">Profile</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="pt-20 max-w-4xl mx-auto px-4 pb-24">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-2xl font-semibold text-gray-800">Explore</h2>
+      <div class="flex items-center gap-3">
+        <input id="mobileSearch" class="sm:hidden px-3 py-2 rounded-full border" placeholder="Search..." />
+        <button id="refreshBtn" class="text-indigo-600 hover:underline" title="Refresh">Refresh</button>
+      </div>
+    </div>
+
+    <!-- grid -->
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      <div id="loading" class="col-span-full text-center text-gray-500">Loading items…</div>
+    </div>
+
+    <div id="noResults" class="hidden text-center text-gray-400 mt-8">No items found.</div>
+  </main>
+
+  <!-- Item modal (hidden) -->
+  <div id="itemModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+    <div class="max-w-2xl w-full bg-white rounded-xl overflow-hidden shadow-xl">
+      <div class="p-4 flex items-start justify-between border-b">
+        <div>
+          <div id="modalOwner" class="text-sm text-gray-600">@owner</div>
+          <h3 id="modalTitle" class="text-xl font-semibold"></h3>
+        </div>
+        <button id="closeModal" class="text-gray-500">✕</button>
+      </div>
+
+      <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <img id="modalImage" src="" alt="" class="w-full h-64 object-cover rounded" />
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-indigo-600 mb-2" id="modalPrice">$0.00</div>
+          <p id="modalDesc" class="text-gray-700 mb-4"></p>
+          <div id="modalStatus" class="mb-4 text-xs inline-block px-3 py-1 rounded-full bg-green-100 text-green-800"></div>
+
+          <div id="modalActions" class="space-y-2">
+            <button id="modalBuyBtn" class="w-full py-2 bg-indigo-600 text-white rounded-md">Buy Now</button>
+            <button id="modalOfferBtn" class="w-full py-2 border border-indigo-600 text-indigo-600 rounded-md">Make Offer</button>
+          </div>
+
+          <div id="modalMeta" class="text-xs text-gray-400 mt-4">Item ID: <span id="modalId"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:8081'; // updated to correct port
+  const grid = document.getElementById('grid');
+  const loading = document.getElementById('loading');
+  const noResults = document.getElementById('noResults');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const searchForm = document.getElementById('searchForm');
+  const searchInput = document.getElementById('searchInput');
+  const mobileSearch = document.getElementById('mobileSearch');
+
+  let itemsCache = [];
+
+  async function loadItems(q = '') {
+    grid.innerHTML = '';
+    loading.classList.remove('hidden');
+    noResults.classList.add('hidden');
+
+    try {
+      // adjust param name if your API uses something else
+      const url = q ? `${API_BASE_URL}/items?q=${encodeURIComponent(q)}` : `${API_BASE_URL}/items`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('network');
+      const items = await res.json();
+      itemsCache = items;
+      renderGrid(items);
+      if (!items.length) noResults.classList.remove('hidden');
+    } catch (err) {
+      grid.innerHTML = '<div class="col-span-full text-center text-red-600">Unable to load items. Is the API running?</div>';
+    } finally {
+      loading.classList.add('hidden');
+    }
+  }
+
+  function renderGrid(items) {
+    grid.innerHTML = '';
+    items.forEach(it => {
+      const img = (it.imageUrl || '').trim() || 'https://via.placeholder.com/600x400?text=No+Image';
+      const card = document.createElement('article');
+      card.className = 'post-card bg-white rounded-xl overflow-hidden shadow-sm';
+      card.innerHTML = `
+        <div class="h-44 bg-gray-100">
+          <img src="${img}" alt="${escapeHtml(it.name)}" class="w-full h-full object-cover">
+        </div>
+        <div class="p-3">
+          <div class="flex justify-between items-start mb-1">
+            <div>
+              <div class="text-sm text-gray-600">@${escapeHtml(it.ownerId)}</div>
+              <h4 class="font-semibold text-gray-800">${escapeHtml(it.name)}</h4>
+            </div>
+            <div class="text-indigo-600 font-bold">$${Number(it.price).toFixed(2)}</div>
+          </div>
+          <p class="text-xs text-gray-500 truncate">${escapeHtml(it.description || '')}</p>
+        </div>
+      `;
+      card.addEventListener('click', () => openModal(it.id));
+      grid.appendChild(card);
+    });
+  }
+
+  // simple HTML escape
+  function escapeHtml(s = '') {
+    return String(s)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  // modal logic
+  const itemModal = document.getElementById('itemModal');
+  const closeModalBtn = document.getElementById('closeModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalImage = document.getElementById('modalImage');
+  const modalDesc = document.getElementById('modalDesc');
+  const modalPrice = document.getElementById('modalPrice');
+  const modalOwner = document.getElementById('modalOwner');
+  const modalIdEl = document.getElementById('modalId');
+  const modalStatus = document.getElementById('modalStatus');
+  const modalBuyBtn = document.getElementById('modalBuyBtn');
+  const modalOfferBtn = document.getElementById('modalOfferBtn');
+
+  function openModal(itemId) {
+    const it = itemsCache.find(x => String(x.id) === String(itemId));
+    if (!it) return alert('Item no longer available');
+    modalTitle.textContent = it.name;
+    modalImage.src = it.imageUrl || 'https://via.placeholder.com/800x600?text=No+Image';
+    modalDesc.textContent = it.description || '';
+    modalPrice.textContent = `$${Number(it.price).toFixed(2)}`;
+    modalOwner.textContent = `@${it.ownerId}`;
+    modalIdEl.textContent = it.id;
+    modalStatus.textContent = it.status || 'Available';
+    modalStatus.className = it.status === 'Available' ? 'mb-4 inline-block text-xs px-3 py-1 rounded-full bg-green-100 text-green-800' : 'mb-4 inline-block text-xs px-3 py-1 rounded-full bg-red-100 text-red-800';
+
+    modalBuyBtn.disabled = it.status !== 'Available';
+    modalOfferBtn.disabled = it.status !== 'Available';
+
+    modalBuyBtn.onclick = () => buyItem(it.id, it.price);
+    modalOfferBtn.onclick = () => makeOffer(it.id, it.price);
+
+    itemModal.classList.remove('hidden');
+    itemModal.classList.add('flex');
+  }
+
+  closeModalBtn.addEventListener('click', () => { itemModal.classList.add('hidden'); itemModal.classList.remove('flex'); });
+
+  // buy & offer logic (similar to your earlier code)
+  async function buyItem(itemId, itemPrice) {
+    const buyerId = prompt('Enter your Buyer ID to confirm purchase:');
+    if (!buyerId) return;
+    if (!confirm(`Confirm purchase of Item ID ${itemId} for $${Number(itemPrice).toFixed(2)}?`)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/items/${itemId}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buyerId })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        alert(`Success! Item sold for $${Number(result.finalPrice).toFixed(2)}`);
+        await loadItems(searchInput.value || mobileSearch.value || '');
+        closeModalBtn.click();
+      } else {
+        alert(result.error || 'Error purchasing item');
+      }
+    } catch (err) {
+      alert('Network error.');
+    }
+  }
+
+  async function makeOffer(itemId, currentPrice) {
+    const buyerId = prompt('Enter your Buyer ID to make an offer:');
+    if (!buyerId) return;
+    let offeredPrice = prompt(`Enter your offer price (must be less than $${Number(currentPrice).toFixed(2)}):`);
+    if (offeredPrice === null) return;
+    offeredPrice = parseFloat(offeredPrice);
+    if (isNaN(offeredPrice) || offeredPrice <= 0 || offeredPrice >= Number(currentPrice)) {
+      return alert('Invalid offer.');
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/items/${itemId}/offer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buyerId, offeredPrice })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        alert('Offer submitted.');
+        await loadItems(searchInput.value || mobileSearch.value || '');
+        closeModalBtn.click();
+      } else {
+        alert(result.error || 'Error making offer');
+      }
+    } catch (err) {
+      alert('Network error.');
+    }
+  }
+
+  // init
+  refreshBtn.addEventListener('click', () => loadItems(searchInput.value || mobileSearch.value || ''));
+  searchForm.addEventListener('submit', e => { e.preventDefault(); loadItems(searchInput.value.trim()); });
+  mobileSearch.addEventListener('keyup', e => { if (e.key === 'Enter') loadItems(mobileSearch.value.trim()); });
+
+  loadItems();
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Go Thrift — Upload</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto; background:#f7f7f7 } </style>
+</head>
+<body class="min-h-screen">
+
+  <header class="fixed top-0 left-0 right-0 bg-white border-b z-40">
+    <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
+      <a href="/" class="text-indigo-600 font-semibold">&larr; Back to Explore</a>
+      <div class="text-sm text-gray-600">Upload item</div>
+      <div></div>
+    </div>
+  </header>
+
+  <main class="pt-20 max-w-2xl mx-auto px-4 pb-24">
+    <div class="bg-white rounded-xl shadow p-6">
+      <form id="uploadForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Image (optional)</label>
+          <div class="mt-2 flex items-center gap-4">
+            <img id="preview" src="https://via.placeholder.com/240x160?text=Preview" alt="preview" class="w-40 h-28 object-cover rounded border" />
+            <div>
+              <input id="imageInput" type="file" accept="image/*" class="block" />
+              <p class="text-xs text-gray-500 mt-2">Max recommended size: 5MB</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Owner ID</label>
+          <input id="ownerId" type="text" placeholder="user_alice" class="mt-1 block w-full rounded-md border p-2" value="user_alice" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Item Name</label>
+          <input id="itemName" type="text" placeholder="Vintage Chair" class="mt-1 block w-full rounded-md border p-2" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Description</label>
+          <textarea id="itemDesc" rows="3" class="mt-1 block w-full rounded-md border p-2">Nice condition</textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Price (USD)</label>
+          <input id="itemPrice" type="number" step="0.01" min="0.01" value="10.00" class="mt-1 block w-full rounded-md border p-2" required />
+        </div>
+
+        <div>
+          <button id="submitBtn" type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-md">Post item</button>
+        </div>
+
+        <div id="uploadMsg" class="text-center text-sm mt-2"></div>
+      </form>
+    </div>
+  </main>
+
+<script>
+  const API_BASE_URL = 'http://localhost:8081';
+  const imageInput = document.getElementById('imageInput');
+  const preview = document.getElementById('preview');
+  const uploadForm = document.getElementById('uploadForm');
+  const uploadMsg = document.getElementById('uploadMsg');
+
+  imageInput.addEventListener('change', () => {
+    const f = imageInput.files[0];
+    if (!f) { preview.src = 'https://via.placeholder.com/240x160?text=Preview'; return; }
+    const url = URL.createObjectURL(f);
+    preview.src = url;
+  });
+
+  function showMsg(msg, err=false) {
+    uploadMsg.textContent = msg;
+    uploadMsg.className = 'text-center text-sm mt-2 ' + (err ? 'text-red-600' : 'text-green-600');
+    if (!err) setTimeout(()=> uploadMsg.textContent = '', 4000);
+  }
+
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ownerId = document.getElementById('ownerId').value.trim();
+    const name = document.getElementById('itemName').value.trim();
+    const description = document.getElementById('itemDesc').value.trim();
+    const price = parseFloat(document.getElementById('itemPrice').value);
+
+    // Build FormData (multipart) with image if provided
+    const formData = new FormData();
+    formData.append('ownerId', ownerId);
+    formData.append('name', name);
+    formData.append('description', description);
+    formData.append('price', price);
+
+    if (imageInput.files.length > 0) {
+      const file = imageInput.files[0];
+      formData.append('image', file, file.name);
+    }
+
+    try {
+      // Try multipart first. If server can't handle, fallback logic could be added.
+      const res = await fetch(`${API_BASE_URL}/items`, {
+        method: 'POST',
+        body: formData // no content-type header here (browser sets boundary)
+      });
+      const result = await res.json();
+      if (res.ok) {
+        showMsg(`Item posted — ID ${result.id}`);
+        uploadForm.reset();
+        preview.src = 'https://via.placeholder.com/240x160?text=Preview';
+      } else {
+        showMsg(result.error || 'Error posting item', true);
+      }
+    } catch (err) {
+      console.error(err);
+      // fallback: send JSON only (without image)
+      try {
+        const res2 = await fetch(`${API_BASE_URL}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerId, name, description, price })
+        });
+        const r2 = await res2.json();
+        if (res2.ok) {
+          showMsg(`Item posted (no image) — ID ${r2.id}`);
+          uploadForm.reset();
+          preview.src = 'https://via.placeholder.com/240x160?text=Preview';
+        } else {
+          showMsg(r2.error || 'Error posting fallback', true);
+        }
+      } catch (e2) {
+        showMsg('Network error — could not reach API', true);
+      }
+    }
+  });
+</script>
+</body>
+</html>
