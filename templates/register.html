@@ -29,6 +29,7 @@
       </div>
       <button type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-md">Register</button>
       <p id="registerMsg" class="text-sm mt-2 text-center"></p>
+      <p class="text-sm text-center text-gray-600 mt-3">Already have an account? <a href="/login" class="text-indigo-600 hover:underline">Login here</a></p>
     </form>
   </div>
 
@@ -52,8 +53,11 @@
       });
       const result = await res.json();
       if (res.ok) {
-        registerMsg.textContent = "Registration successful! Welcome, " + result.user.name;
+        registerMsg.textContent = "Registration successful! Redirecting to login...";
         registerMsg.className = "text-green-600 text-center mt-2";
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
       } else {
         registerMsg.textContent = result.error || 'Registration failed';
         registerMsg.className = "text-red-600 text-center mt-2";

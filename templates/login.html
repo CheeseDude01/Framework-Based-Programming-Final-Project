@@ -21,6 +21,7 @@
       </div>
       <button type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-md">Login</button>
       <p id="loginMsg" class="text-sm mt-2 text-center"></p>
+      <p class="text-sm text-center text-gray-600 mt-3">Don't have an account? <a href="/register" class="text-indigo-600 hover:underline">Register here</a></p>
     </form>
   </div>
 
@@ -45,11 +46,12 @@
       const result = await res.json();
       if (res.ok) {
         localStorage.setItem('token', result.token);
+        localStorage.setItem('username', result.user.username);
+        localStorage.setItem('userId', result.user.ID);
         loginMsg.textContent = "Login successful! Welcome, " + result.user.name;
         loginMsg.className = "text-green-600 text-center mt-2";
-        // Redirect to profile after a short delay
         setTimeout(() => {
-          window.location.href = '/profile';
+          window.location.href = '/explore';
         }, 1000);
       } else {
         loginMsg.textContent = result.error || 'Login failed';

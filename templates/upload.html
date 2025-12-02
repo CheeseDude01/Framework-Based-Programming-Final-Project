@@ -11,9 +11,9 @@
 
   <header class="fixed top-0 left-0 right-0 bg-white border-b z-40">
     <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
-      <a href="/" class="text-indigo-600 font-semibold">&larr; Back to Explore</a>
+      <a href="/explore" class="text-indigo-600 font-semibold">&larr; Back to Explore</a>
       <div class="text-sm text-gray-600">Upload item</div>
-      <div></div>
+      <div class="text-sm text-gray-600">Logged in as: <span id="currentUser" class="font-semibold"></span></div>
     </div>
   </header>
 
@@ -31,10 +31,7 @@
           </div>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Owner ID</label>
-          <input id="ownerId" type="text" placeholder="user_alice" class="mt-1 block w-full rounded-md border p-2" value="user_alice" required />
-        </div>
+        <input id="ownerId" type="hidden" />
 
         <div>
           <label class="block text-sm font-medium text-gray-700">Item Name</label>
@@ -47,8 +44,8 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700">Price (USD)</label>
-          <input id="itemPrice" type="number" step="0.01" min="0.01" value="10.00" class="mt-1 block w-full rounded-md border p-2" required />
+          <label class="block text-sm font-medium text-gray-700">Price (IDR)</label>
+          <input id="itemPrice" type="number" step="1" min="1" value="10000" class="mt-1 block w-full rounded-md border p-2" required />
         </div>
 
         <div>
@@ -67,6 +64,16 @@
   const uploadForm = document.getElementById('uploadForm');
   const uploadMsg = document.getElementById('uploadMsg');
 
+  const username = localStorage.getItem('username');
+  if (!username) {
+    alert('Please login first');
+    window.location.href = '/login';
+  }
+
+  document.getElementById('currentUser').textContent = username;
+
+  document.getElementById('ownerId').value = username;
+
   imageInput.addEventListener('change', () => {
     const f = imageInput.files[0];
     if (!f) { preview.src = 'https://via.placeholder.com/240x160?text=Preview'; return; }
@@ -82,17 +89,27 @@
 
   uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const currentUsername = localStorage.getItem('username') || '';
+    document.getElementById('ownerId').value = currentUsername;
     const ownerId = document.getElementById('ownerId').value.trim();
     const name = document.getElementById('itemName').value.trim();
     const description = document.getElementById('itemDesc').value.trim();
-    const price = parseFloat(document.getElementById('itemPrice').value);
+    const priceInput = document.getElementById('itemPrice').value;
+    const priceStr = (priceInput || '').replace(',', '.').trim();
+    const price = parseFloat(priceStr);
 
-    // Build FormData (multipart) with image if provided
+    console.log('Submitting with ownerId:', ownerId);
+
+    if (!ownerId) {
+      showMsg('Owner ID unidentified. Please login again.', true);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('ownerId', ownerId);
     formData.append('name', name);
     formData.append('description', description);
-    formData.append('price', price);
+    formData.append('price', priceStr);
 
     if (imageInput.files.length > 0) {
       const file = imageInput.files[0];
@@ -100,10 +117,9 @@
     }
 
     try {
-      // Try multipart first. If server can't handle, fallback logic could be added.
       const res = await fetch(`${API_BASE_URL}/items`, {
         method: 'POST',
-        body: formData // no content-type header here (browser sets boundary)
+        body: formData
       });
       const result = await res.json();
       if (res.ok) {
@@ -115,7 +131,6 @@
       }
     } catch (err) {
       console.error(err);
-      // fallback: send JSON only (without image)
       try {
         const res2 = await fetch(`${API_BASE_URL}/items`, {
           method: 'POST',

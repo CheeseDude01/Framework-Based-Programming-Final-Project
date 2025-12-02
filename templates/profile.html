@@ -10,7 +10,7 @@
 <body>
   <header class="fixed top-0 left-0 right-0 bg-white border-b z-40">
     <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
-      <a href="/" class="text-indigo-600 font-semibold">&larr; Explore</a>
+      <a href="/explore" class="text-indigo-600 font-semibold">&larr; Explore</a>
       <div class="text-sm text-gray-600">Profile</div>
       <a href="/upload" class="px-3 py-2 bg-indigo-600 text-white rounded-md">Upload</a>
     </div>
@@ -36,14 +36,98 @@
     </section>
   </main>
 
+  <!-- Edit Item Modal -->
+  <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold">Edit Item</h2>
+          <button id="closeEditModal" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <form id="editForm" class="space-y-4">
+          <input type="hidden" id="editItemId" />
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Image</label>
+            <div class="flex items-center gap-4">
+              <img id="editPreview" src="" alt="preview" class="w-40 h-28 object-cover rounded border" />
+              <div>
+                <input id="editImageInput" type="file" accept="image/*" class="block" />
+                <p class="text-xs text-gray-500 mt-1">Leave empty to keep current image</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Item Name</label>
+            <input id="editItemName" type="text" class="mt-1 block w-full rounded-md border p-2" required />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Description</label>
+            <textarea id="editItemDesc" rows="3" class="mt-1 block w-full rounded-md border p-2"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Price (IDR)</label>
+            <input id="editItemPrice" type="number" step="1" min="1" class="mt-1 block w-full rounded-md border p-2" required />
+          </div>
+
+          <div class="flex gap-3">
+            <button type="submit" class="flex-1 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save Changes</button>
+            <button type="button" id="cancelEdit" class="flex-1 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">Cancel</button>
+          </div>
+
+          <div id="editMsg" class="text-center text-sm"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
 <script>
   const API_BASE_URL = 'http://localhost:8081';
   const profileGrid = document.getElementById('profileGrid');
   const loadingProfile = document.getElementById('loadingProfile');
   const profileNoItems = document.getElementById('profileNoItems');
+  const editModal = document.getElementById('editModal');
+  const editForm = document.getElementById('editForm');
+  const closeEditModal = document.getElementById('closeEditModal');
+  const cancelEdit = document.getElementById('cancelEdit');
+  const editImageInput = document.getElementById('editImageInput');
+  const editPreview = document.getElementById('editPreview');
+  const editMsg = document.getElementById('editMsg');
 
-  // adjust to show a specific user: you can read username param from URL if you wish
-  const PROFILE_USER = new URLSearchParams(location.search).get('u') || 'user_alice';
+  let currentItems = [];
+
+  const username = localStorage.getItem('username');
+  if (!username) {
+    alert('Please login first');
+    window.location.href = '/login';
+  }
+
+  closeEditModal.addEventListener('click', () => {
+    editModal.classList.add('hidden');
+    editModal.classList.remove('flex');
+  });
+
+  cancelEdit.addEventListener('click', () => {
+    editModal.classList.add('hidden');
+    editModal.classList.remove('flex');
+  });
+
+  editImageInput.addEventListener('change', () => {
+    const f = editImageInput.files[0];
+    if (f) {
+      editPreview.src = URL.createObjectURL(f);
+    }
+  });
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await updateItem();
+  });
+
+  const PROFILE_USER = username;
   document.getElementById('profileUsername').textContent = `@${PROFILE_USER}`;
 
   async function loadProfileItems() {
@@ -52,10 +136,13 @@
     profileNoItems.classList.add('hidden');
 
     try {
-      // endpoint should support owner filtering: e.g., /items?ownerId=user_alice
-      const res = await fetch(`${API_BASE_URL}/items?ownerId=${encodeURIComponent(PROFILE_USER)}`);
+      const res = await fetch(`${API_BASE_URL}/items`);
       if (!res.ok) throw new Error('network');
-      const items = await res.json();
+      const allItems = await res.json();
+      const items = allItems.filter(it => it.ownerId === PROFILE_USER);
+      
+      document.getElementById('profileStats').textContent = `${items.length} items`;
+      
       if (!items.length) profileNoItems.classList.remove('hidden');
       renderProfileGrid(items);
     } catch (err) {
@@ -65,23 +152,117 @@
     }
   }
 
+  async function deleteItem(itemId, itemName) {
+    if (!confirm(`Are you sure you want to delete "${itemName}"?`)) return;
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/items/${itemId}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        alert('Item deleted successfully!');
+        loadProfileItems();
+      } else {
+        const result = await res.json();
+        alert(result.error || 'Failed to delete item');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  }
+
+  function openEditModal(itemId) {
+    const item = currentItems.find(it => it.id === itemId);
+    if (!item) return;
+
+    document.getElementById('editItemId').value = item.id;
+    document.getElementById('editItemName').value = item.name;
+    document.getElementById('editItemDesc').value = item.description || '';
+    document.getElementById('editItemPrice').value = item.price;
+    editPreview.src = item.imageUrl || 'https://via.placeholder.com/240x160?text=No+Image';
+    editMsg.textContent = '';
+
+    editModal.classList.remove('hidden');
+    editModal.classList.add('flex');
+  }
+
+  async function updateItem() {
+    const itemId = document.getElementById('editItemId').value;
+    const name = document.getElementById('editItemName').value.trim();
+    const description = document.getElementById('editItemDesc').value.trim();
+    const priceInput = document.getElementById('editItemPrice').value;
+    const priceStr = (priceInput || '').replace(',', '.').trim();
+
+    if (!name || !priceStr) {
+      editMsg.textContent = 'Name and price are required';
+      editMsg.className = 'text-center text-sm text-red-600';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('description', description);
+    formData.append('price', priceStr);
+
+    if (editImageInput.files.length > 0) {
+      formData.append('image', editImageInput.files[0]);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/items/${itemId}`, {
+        method: 'PUT',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        editMsg.textContent = 'Item updated successfully!';
+        editMsg.className = 'text-center text-sm text-green-600';
+        setTimeout(() => {
+          editModal.classList.add('hidden');
+          editModal.classList.remove('flex');
+          loadProfileItems();
+        }, 1000);
+      } else {
+        editMsg.textContent = data.error || 'Failed to update item';
+        editMsg.className = 'text-center text-sm text-red-600';
+      }
+    } catch (err) {
+      editMsg.textContent = 'Network error';
+      editMsg.className = 'text-center text-sm text-red-600';
+    }
+  }
+
   function renderProfileGrid(items) {
+    currentItems = items;
     profileGrid.innerHTML = '';
     items.forEach(it => {
       const img = it.imageUrl || 'https://via.placeholder.com/600x400?text=No+Image';
+      const statusBadge = it.status === 'sold' 
+        ? '<span class="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">SOLD</span>'
+        : '<span class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">Available</span>';
+      const isSold = it.status === 'sold';
+      const editButton = isSold
+        ? '<button disabled class="flex-1 py-2 bg-gray-300 text-gray-500 rounded-md text-sm cursor-not-allowed">Edit</button>'
+        : `<button onclick="openEditModal(${it.id})" class="flex-1 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">Edit</button>`;
       const node = document.createElement('article');
       node.className = 'bg-white rounded-xl overflow-hidden shadow-sm';
       node.innerHTML = `
-        <div class="h-44 bg-gray-100">
+        <div class="h-44 bg-gray-100 relative">
           <img src="${img}" class="w-full h-full object-cover" alt="${escapeHtml(it.name)}" />
+          ${statusBadge}
         </div>
         <div class="p-3">
-          <div class="flex justify-between items-start">
-            <div>
-              <h4 class="font-semibold text-gray-800">${escapeHtml(it.name)}</h4>
-              <div class="text-xs text-gray-500">${escapeHtml(it.description || '').slice(0,80)}</div>
-            </div>
-            <div class="text-indigo-600 font-bold">$${Number(it.price).toFixed(2)}</div>
+          <div class="mb-2">
+            <h4 class="font-semibold text-gray-800 mb-1">${escapeHtml(it.name)}</h4>
+            <div class="text-indigo-600 font-bold text-lg">Rp ${Number(it.price).toLocaleString('id-ID')}</div>
+            <div class="text-xs text-gray-500 mt-1">${escapeHtml(it.description || '').slice(0,60)}</div>
+          </div>
+          <div class="flex gap-2">
+            ${editButton}
+            <button onclick="deleteItem(${it.id}, '${escapeHtml(it.name)}')" class="flex-1 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">
+              Delete
+            </button>
           </div>
         </div>
       `;
@@ -90,8 +271,11 @@
   }
 
   function escapeHtml(s = '') {
-    return String(s).replaceAll('&','&amp;').replaceAll('<','<').replaceAll('>','>').replaceAll('"','"').replaceAll("'", '&#39;');
+    return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'", '&#39;');
   }
+
+  window.deleteItem = deleteItem;
+  window.openEditModal = openEditModal;
 
   loadProfileItems();
 </script>

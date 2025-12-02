@@ -7,20 +7,26 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine) {
+	r.Static("/static", "./static")
+
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(302, "/login")
+	})
+
 	r.POST("/register", controllers.Register)
 	r.POST("/login", controllers.Login)
 
-	// Serve register.html
 	r.GET("/register", func(c *gin.Context) {
 		c.File("./templates/register.html")
 	})
 
-	// Serve login.html
 	r.GET("/login", func(c *gin.Context) {
 		c.File("./templates/login.html")
 	})
 
-	// Removed root GET as it is now handled in main.go to avoid conflict
+	r.GET("/explore", func(c *gin.Context) {
+		c.File("./templates/index.html")
+	})
 
 	r.GET("/items", controllers.GetItems)
 	r.GET("/items/:id", controllers.GetItem)
@@ -30,12 +36,10 @@ func SetupRoutes(r *gin.Engine) {
 
 	r.POST("/items/:id/buy", controllers.BuyItem)
 
-	// Serve upload.html
 	r.GET("/upload", func(c *gin.Context) {
 		c.File("./templates/upload.html")
 	})
 
-	// Serve profile.html
 	r.GET("/profile", func(c *gin.Context) {
 		c.File("./templates/profile.html")
 	})

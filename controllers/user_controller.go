@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("your-secret-key") // Change this to a secure key
+var jwtSecret = []byte("your-secret-key")
 
 type registerInput struct {
 	Username string `json:"username" binding:"required"`
@@ -72,11 +72,10 @@ func Login(c *gin.Context) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+	c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
 		return
 	}
 
-	// Generate JWT token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"exp":     time.Now().Add(time.Hour * 24).Unix(),
