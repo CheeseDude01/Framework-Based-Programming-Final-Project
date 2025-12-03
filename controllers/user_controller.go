@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("your-secret-key")
+var jwtSecret = []byte("alfa12345")
 
 type registerInput struct {
 	Username string `json:"username" binding:"required"`
